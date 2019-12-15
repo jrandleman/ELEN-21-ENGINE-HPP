@@ -31,3 +31,39 @@
    => Helps with implementing "don't cares" in user-defined custom fcns
 2) `TruthTable_fcn`: _Given a # of bits & a fcn, returns `vector` of fcn results across truth table!_
 3) `DONT_CARE_BIT`: _Universal predefined constant - to be returned by user fcns if at a "don't care" row!_
+
+-------------
+## Sample User-Defined Function:
+```c++
+// NOTE the mandatory predefined "Bit" return & "Bits" arg types!
+// NOTE "Bits" = vector sorted by descending bit significance, 
+//      contining a "row" of truth table bits as its arg!
+ 
+Bit your_func_name_here(Bits bit_vector) { 
+   Bit dont_care_row = 3; // if we don't care about row 3 (rows starting from 0)
+   
+   // BCD_decoder returns decimal value of given bit vector
+   if(BCD_decoder(bit_vector) == dont_care_row) 
+     return DONT_CARE_BIT; // use predefined "DONT_CARE_BIT" to denote don't cares
+     
+   return (bit_vector[0] & !bit_vector[1]) ^ bit_vector[3] // any operation
+}
+```
+
+-----------
+## Operators Guide:
+```c++
+/******************************************************
+* OPERATION * MINIMUM SOP-POS NOTATION * C++ NOTATION *
+*******************************************************
+*   NOT     *            A'            *     !A       *
+*           *                          *              *
+*   AND     *          (A.B)           *   (A & B)    *
+*   OR      *          (A+B)           *   (A | B)    *
+*   XOR     *          (A^B)           *   (A ^ B)    *
+*           *                          *              *
+*   NAND    *          (A.B)'          *   !(A & B)   *
+*   NOR     *          (A+B)'          *   !(A | B)   *
+*   XNOR    *          (A'^B)          *   !(A ^ B)   *
+******************************************************/
+```
