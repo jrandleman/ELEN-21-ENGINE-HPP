@@ -82,7 +82,7 @@ const Bit DONT_CARE_BIT = 2;
  *    if(BCD_decoder(bit_vector) == dont_care_row) 
  *      return DONT_CARE_BIT; // use predefined "DONT_CARE_BIT" to denote don't cares
  *
- *    return (bit_vector[0] & !bit_vector[1]) ^ bit_vector[3] // any operation
+ *    return (bit_vector[0] & !bit_vector[1]) ^ bit_vector[3]; // any operation
  * }
  */
 
