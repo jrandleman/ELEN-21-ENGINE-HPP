@@ -448,7 +448,7 @@ const std::set<Bit> overlap_cube) {
 }
 
 
-// Given variable names and fcn bit values, returns string of fcn in POS form
+// Given variable names and fcn bit values, returns string of fcn in SOP/POS form
 // => NOTE: variable names in "var_names" shall be listed in descending bit 
 //          significance (ie var_names[0] == MSB && var_names[n-1] == LSB).
 // => NOTE: bits in "fcn_bit_values" shall be listed in top-down order as if
