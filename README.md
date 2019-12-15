@@ -26,11 +26,13 @@
 3) `dual_fcn`:       _Returns `string` with fcn's dual!_</br>
 4) `compl_fcn`:      _Composes "`compl_literals`" & "`dual_fcn`"!_
 
-## The Library's 2 Additional Functions & Universal Constant:
+## The Library's 2 Additional Functions, Universal Constant, & 2 Types:
 1) `BCD_decoder`: _Convert `vector<unsigned>` of bits into a decimal #!_</br>
    => Helps with implementing "don't cares" in user-defined custom fcns
 2) `TruthTable_fcn`: _Given a # of bits & a fcn, returns `vector` of fcn results across truth table!_
 3) `DONT_CARE_BIT`: _Universal predefined constant - to be returned by user fcns if at a "don't care" row!_
+4) `Bit`: _Predefined type: `unsigned long long` (used as custom fcn return type)!_
+5) `Bits`: _Predefined type: `vector<unsigned long long>` (used as custom fcn arg type)!_
 
 -------------
 ## Sample User-Defined Function:
@@ -46,7 +48,7 @@ Bit your_func_name_here(Bits bit_vector) {
    if(BCD_decoder(bit_vector) == dont_care_row) 
      return DONT_CARE_BIT; // use predefined "DONT_CARE_BIT" to denote don't cares
      
-   return (bit_vector[0] & !bit_vector[1]) ^ bit_vector[3] // any operation
+   return (bit_vector[0] & !bit_vector[1]) ^ bit_vector[3]; // any operation
 }
 ```
 
