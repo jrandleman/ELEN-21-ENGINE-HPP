@@ -12,8 +12,9 @@
               => Given either a `vector<string>` with variable names & `vector<unsigned>` of fcn results (as if from a truth table)</br>
               => OR a `vector<string>` with variable names & a fcn to apply to a generated truth table
 3) `Kmap_print`: _Prints a K-Map to `stdout`!_</br>
-              => Given either a `vector<unsigned>` of fcn results (as if from a truth table)</br>
-              => OR a # of bits (# of K-Map vars) along with a fcn to apply across a generated truthtable
+              => Given either a # of bits (# of variables in K-Map) for a blank K-Map</br>
+              => OR a # of bits (# of K-Map vars) along with a fcn to apply across a generated truthtable onto a K-Map<br>
+              => OR a `vector<unsigned>` of fcn results (as if from a truth table)
 4) `TruthTable_print`: _Prints a Truth Table to `stdout`!_</br>
               => Given either a # of bits (# of variables in Truth Table)</br>
               => OR a # of bits and a `vector` or fcns to apply to the table</br>
