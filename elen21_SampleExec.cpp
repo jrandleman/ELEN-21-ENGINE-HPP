@@ -6,7 +6,7 @@
 #include "elen21.hpp"
 
 /*
- * 15 FUNCTIONS FOR USERS:
+ * 16 FUNCTIONS FOR USERS:
  *     1) SOP_str: returns SOP string for fcn, given string vector w/ var names 
  *                 & "Bits" of fcn results as if from a truth table
  *     2) SOP_str: returns SOP string for fcn, given string vector w/ var names 
@@ -25,14 +25,15 @@
  *
  *     9) BCD_decoder: convert vector of bits into decimal # (helps w/ dont cares)
  *
- *    10) Kmap_print: given "Bits" of fcn results (as if from a truth table)
- *    11) Kmap_print: given bit# & fcn to apply across generated truthtable
+ *    10) Kmap_print: given bit#
+ *    11) Kmap_print: given "Bits" of fcn results (as if from a truth table)
+ *    12) Kmap_print: given bit# & fcn to apply across generated truthtable
  *
- *    12) TruthTable_print: given bit#
- *    13) TruthTable_print: given bit# & vector of fcns to apply to table
- *    14) TruthTable_print: given vector of "Bits" (results of truth table fcns)
+ *    13) TruthTable_print: given bit#
+ *    14) TruthTable_print: given bit# & vector of fcns to apply to table
+ *    15) TruthTable_print: given vector of "Bits" (results of truth table fcns)
  *
- *    15) TruthTable_fcn: given bit# & a fcn, returns vector of fcn results 
+ *    16) TruthTable_fcn: given bit# & a fcn, returns vector of fcn results 
  *                        from truth table
  */
 
@@ -48,8 +49,10 @@ int main() {
 
   // Generating POS & SOP Forms
   cout << "\nGenerating POS & SOP Forms:\n";
-  string sop = SOP_str({"W", "X", "Y", "Z"}, {0,0,1,0,1,1,1,1,1,1,1,0,0,0,1,1});
-  string pos = POS_str({"W", "X", "Y", "Z"}, {0,0,1,0,1,1,1,1,1,1,1,0,0,0,1,1});
+  // string sop = SOP_str({"W", "X", "Y", "Z"}, {0,0,1,0,1,1,1,1,1,1,1,0,0,0,1,1});
+  string sop = SOP_str({"W", "X", "Y"}, {1,1,0,1,1,0,1,1});
+  // string pos = POS_str({"W", "X", "Y", "Z"}, {0,0,1,0,1,1,1,1,1,1,1,0,0,0,1,1});
+  string pos = POS_str({"W", "X", "Y"}, {1,1,0,1,1,0,1,1});
   cout << " => SOP = " << sop << endl 
        << " => POS = " << pos << "\n\n";
 
@@ -115,6 +118,9 @@ int main() {
   cout << "\nPrinting a K-Map for the given # of variables\n"
        << "  + a fcn to apply to their truth table:\n";
   Kmap_print(4, xnor01);
+
+  cout << "\nPrinting a Blank K-Map of 4 Bits:\n";
+  Kmap_print(4);
 
 
 
