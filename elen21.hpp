@@ -23,6 +23,7 @@ using Bit = unsigned long long;
 using Bits = std::vector<Bit>;
 
 const Bit DONT_CARE_BIT = 2;
+const Bit BLANK_BIT = 3;
 
 /******************************************************
 * OPERATION * MINIMUM SOP-POS NOTATION * C++ NOTATION *
@@ -39,7 +40,7 @@ const Bit DONT_CARE_BIT = 2;
 ******************************************************/
 
 /*
- * 15 FUNCTIONS FOR USERS:
+ * 16 FUNCTIONS FOR USERS:
  *     1) SOP_str: returns SOP string for fcn, given string vector w/ var names 
  *                 & "Bits" of fcn results as if from a truth table
  *     2) SOP_str: returns SOP string for fcn, given string vector w/ var names 
@@ -58,14 +59,15 @@ const Bit DONT_CARE_BIT = 2;
  *
  *     9) BCD_decoder: convert vector of bits into decimal # (helps w/ dont cares)
  *
- *    10) Kmap_print: given "Bits" of fcn results (as if from a truth table)
- *    11) Kmap_print: given bit# & fcn to apply across generated truthtable
+ *    10) Kmap_print: given bit#
+ *    11) Kmap_print: given "Bits" of fcn results (as if from a truth table)
+ *    12) Kmap_print: given bit# & fcn to apply across generated truthtable
  *
- *    12) TruthTable_print: given bit#
- *    13) TruthTable_print: given bit# & vector of fcns to apply to table
- *    14) TruthTable_print: given vector of "Bits" (results of truth table fcns)
+ *    13) TruthTable_print: given bit#
+ *    14) TruthTable_print: given bit# & vector of fcns to apply to table
+ *    15) TruthTable_print: given vector of "Bits" (results of truth table fcns)
  *
- *    15) TruthTable_fcn: given bit# & a fcn, returns vector of fcn results 
+ *    16) TruthTable_fcn: given bit# & a fcn, returns vector of fcn results 
  *                        from truth table
  */
 
@@ -205,11 +207,11 @@ const std::set<Bit>points) {
 ******************************************************************************/
 
 // Recursive fcn to mk a combinations set matrix for "combinations" fcn below
+template <typename T>
 static void find_combinations(const Bit r, 
-const std::set<Bit>::iterator n_begin, 
-const std::set<Bit>::iterator n_end, 
-std::set<Bit>seen, std::set<std::set<Bit>>&combo_matrix) {
-  std::set<Bit>::iterator temp;
+const typename T::iterator n_begin, const typename T::iterator n_end, 
+T seen, std::set<T>&combo_matrix) {
+  typename T::iterator temp;
   for(auto it = n_begin; it != n_end;) {
     seen.insert(*it);
     temp = it++;
@@ -222,10 +224,13 @@ std::set<Bit>seen, std::set<std::set<Bit>>&combo_matrix) {
 }
 
 
-// Returns a set matrix of possible combinations length r w/in set group_n
-// NOTE: r == group size w/in set "group_n" we are finding combos for
-std::set<std::set<Bit>> combinations(const Bit r,const std::set<Bit>group_n){
-  std::set<std::set<Bit>> combo_matrix;
+// Returns a set matrix of possible combinations length r w/in container 
+// group_n of type "T", where T is a std::set of any type of elt.
+// => Hence a set of ints are just as easy combined as a set of sets.
+// NOTE: r == group size w/in set "group_n" we are finding combos 
+template <typename T>
+std::set<T> combinations(const Bit r,const T group_n){
+  std::set<T> combo_matrix;
   if(r > group_n.size())
     return combo_matrix;
   find_combinations(r, group_n.begin(), group_n.end(), {}, combo_matrix);
@@ -280,35 +285,81 @@ const Bit max_inner_hypercube, const std::set<Bit> points) {
   return hypercube_combos;
 }
 
+/******************************************************************************
+* ESSENTIAL PRIME IMPLICANTS FROM PI'S PARSING FUNCTIONS
+******************************************************************************/
 
-// Erases all inner hypercubes of dimension N that are already covered by
-// other inner hypercubes of dimension N (rm redundant prime implicants)
-static void rm_redundant_sub_dimensions(
-std::set<std::set<Bit>>&max_hypercube_overlaps){
-  bool found = false;
-  // for each inner cube
-  for(auto cube = max_hypercube_overlaps.begin();
-      cube != max_hypercube_overlaps.end();) {
-    std::set<Bit> unique_elts(*cube);
-    const Bit N = unique_elts.size();
-    // for each elt in inner cube
-    for(auto e=unique_elts.begin();e!=unique_elts.end()&&!unique_elts.empty();){
-      found = false;
-      // if elt not unique to inner cube wrt dimension N
-      for(auto other_cube : max_hypercube_overlaps)
-        if(other_cube.size() == N && other_cube != *cube && 
-          other_cube.find(*e) != other_cube.end()) {
-          found = true, unique_elts.erase(*(e++));
+// Returns set of all unique elts within the dimensionSet matrix
+std::set<Bit> get_set_of_elts_in_dimension(const std::set<std::set<Bit>>dimensionSet) {
+  std::set<Bit> uniqueElts;
+  for(auto dim : dimensionSet)
+    for(auto point : dim)
+      uniqueElts.insert(point);
+  return uniqueElts;
+}
+
+
+// Return matrix of all possible combinations of start-to-end groups of
+// PI's w/in dimensionSet
+static std::set<std::set<std::set<std::set<Bit>>>> get_all_EPI_candidate_combos(
+const Bit start, const Bit end, const std::set<std::set<Bit>> dimensionSet) {
+  std::set<std::set<std::set<std::set<Bit>>>> possible_EPI_3D_matrix; // Big Oof
+  for(Bit i = start; i <= end; ++i)
+    possible_EPI_3D_matrix.insert(combinations(i, dimensionSet));
+  return possible_EPI_3D_matrix;
+}
+
+
+// confirm whether point matrix (or epi set) contains all of needToCoverElts
+static bool set_contains_all_elts(const std::set<std::set<Bit>>epiSet, 
+const std::set<Bit> needToCoverElts) {
+  for(auto elt : needToCoverElts) {
+    bool found = false;
+    for(auto epi : epiSet) {
+      for(auto point : epi)
+        if(point == elt) {
+          found = true;
           break;
         }
-      if(!found) ++e;
+      if(found) break;
     }
-    // rm inner cube if contains no unique elts wrt Nth dimension
-    if(unique_elts.empty())
-      max_hypercube_overlaps.erase(*(cube++));
-    else
-      ++cube;
+    if(!found) return false;
   }
+  return true;
+}
+
+
+// Return EPIs from PIs given in dimensionSet 
+// (EPI = Essential Prime Implicant, PI = Prime Implicant)
+static std::set<std::set<Bit>> EPIs_within_dimensionSet(
+const std::set<std::set<Bit>> dimensionSet, const std::set<Bit> desiredCoveredBits) {
+  if(dimensionSet.empty()) return {};
+  const Bit m = dimensionSet.size();    // number of sub dimensions
+  const Bit n = (*dimensionSet.begin()).size(); // number of points per sub dimension
+  auto elts_in_dimension = get_set_of_elts_in_dimension(dimensionSet);
+
+  // Unique elts are those we seek to find EPI's covering -- the intersection
+  // of desired bits we ultimately seek to completely cover on the Kmap with 
+  // the derived set of bits that this current subdimension DOES cover (those 
+  // remaining the "desiredCoveredBits" will be covered by a lower dimension)
+  std::set<Bit> uniqueElts;
+  for(auto elt : elts_in_dimension)
+    if(desiredCoveredBits.find(elt) != desiredCoveredBits.end())
+      uniqueElts.insert(elt);
+
+  // minimum sets needed to cover all unique elts
+  const Bit minimum_sets_to_cover_points = 1+((uniqueElts.size()-1)/n);  // cieling(uniqueElts.size()/n)
+
+  // All potential EPI combos, sorted in ascending length (hence the BEST 
+  // (fewer dependancies) epi set will be closer to the front)
+  auto epi_3D_set_combinations = get_all_EPI_candidate_combos(minimum_sets_to_cover_points, m, dimensionSet); 
+
+  for(auto epi_set_combination : epi_3D_set_combinations) // per 3D matrix in 4D matrix
+    for(auto epi_set : epi_set_combination)               // per 2D matrix in 3D matrix
+      if(set_contains_all_elts(epi_set, uniqueElts))
+        return epi_set;
+
+  return {};
 }
 
 /******************************************************************************
@@ -338,15 +389,22 @@ const Bits function_bit_values, const Bit sought_bit) {
   auto hypercube_combos = possible_hypercube_combinations(max_inner_hypercube, points);
 
   // get formable hypercubes from "points" (prime implicants)
-  for(Bit i = 0; i <= max_inner_hypercube && !need_to_cover.empty(); ++i)
+  for(Bit i = 0; i <= max_inner_hypercube && !need_to_cover.empty(); ++i) {
+
+    // track all hypercubes covering the locally critical points 
+    // (points not previously covered by any higher dimension)
+    // and parse out EPI's within from a seperate function 
+    // (this fcn only serves to ID Prime Implicants not the ESSENTIALS)
+    auto LOCAL_DIM_NEED_TO_COVER(need_to_cover);
+    std::set<std::set<Bit>> local_dim_prime_implicants;
+
     for(auto cube_set : hypercube_combos[i]) {
-      if(!sets_are_disjoint(cube_set, need_to_cover) && adj_matrix_contains_hypercube(adj_matrix, cube_set)) {
+      if(!sets_are_disjoint(cube_set, LOCAL_DIM_NEED_TO_COVER) && adj_matrix_contains_hypercube(adj_matrix, cube_set)) {
         // erase found cube's pts from set "need_to_cover"
         for(auto pt : cube_set) 
           need_to_cover.erase(pt);
         // save dimension/hypercube formed
-        max_hypercube_overlaps.insert(cube_set);
-        if(need_to_cover.empty()) break;
+        local_dim_prime_implicants.insert(cube_set);
         // erase subset dimensions of the found dimension
         for(Bit j = i+1; j <= max_inner_hypercube; ++j)
           for(auto sub_cube_set = hypercube_combos[j].begin(); 
@@ -359,7 +417,12 @@ const Bits function_bit_values, const Bit sought_bit) {
       } 
     }
 
-  rm_redundant_sub_dimensions(max_hypercube_overlaps);
+    // Parse & save essential prime implicants from the current dimension's PI's
+    auto epi_set = EPIs_within_dimensionSet(local_dim_prime_implicants, LOCAL_DIM_NEED_TO_COVER);
+    for(auto epi : epi_set)
+      max_hypercube_overlaps.insert(epi);
+  }
+
   return max_hypercube_overlaps;
 }
 
@@ -478,7 +541,7 @@ const Bits fcn_bit_values, const Bit sought_bit) {
       intersection = total_or_empty_set_intersection(D, N, overlap_cube);
       if(intersection == 1)
         cube_vars.push_back(N);
-      if(intersection == -1)
+      else if(intersection == -1)
         cube_compl_vars.push_back(N);
     }
 
@@ -667,7 +730,6 @@ std::string compl_literals(std::string fcn) {
 // Returns dual of the fcn (swap '+' & '.', negate '^' (as XOR dual == XNOR))
 std::string dual_fcn(std::string fcn) {
   if(fcn.empty()) return "";
-  const std::string reserved_chars("+.^");
   // swap '+' & '.', negate '^' to become XNOR (or XNOR to XOR)
   for(auto ch = fcn.begin(); ch != fcn.end(); ++ch) {
     switch(*ch) {
@@ -853,7 +915,7 @@ void TruthTable_print(const Bit bit_No) {
 ******************************************************************************/
 
 // Given std::vector<unsigned> of truth table fcn values, prints
-//   its kmap layout. NOTE: only supports functions of <= 6 vars!
+//   its kmap layout.
 // SAMPLE KMAP LAYOUT INTERPRETATION: 
 // => B(n), where lower n == more significant bit
 //    0  0 B2 B2
@@ -922,12 +984,14 @@ void Kmap_print(const Bits function_bit_values, bool style_kmap_var_sections = t
       cout << "\n";
       
       // print kmap function values
-      for(j = 0; j < COLS; ++j) 
+      for(j = 0; j < COLS; ++j) {
+        const Bit func_bit = function_bit_values[kmap_truthTable_idx[i][j]+kmap4var_instanceNo];
         cout << cell_topleft << format() 
-             << ((function_bit_values[kmap_truthTable_idx[i][j]+kmap4var_instanceNo]==DONT_CARE_BIT)
-                 ? "X"
-                 : std::to_string(function_bit_values[kmap_truthTable_idx[i][j]+kmap4var_instanceNo]))
+             << ((func_bit==DONT_CARE_BIT)
+                 ? "X" : ((func_bit==BLANK_BIT)
+                           ? " " : std::to_string(func_bit)))
              << clearFormat() << cell_topright+side_extend;
+      }
       cout << new_cell_row;
       
       // print kmap idxs
@@ -965,6 +1029,12 @@ bool style_kmap_var_sections = true) {
     fcn_result.push_back(bit_row_fcn(row_result));
   }
   Kmap_print(fcn_result, style_kmap_var_sections);
+}
+
+
+// Print a blank Kmap of n bits
+void Kmap_print(const Bit n, bool style_kmap_var_sections = true) {
+  Kmap_print(n, [](auto v){return 3;}, style_kmap_var_sections);
 }
 
 /******************************************************************************
