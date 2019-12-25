@@ -10,7 +10,6 @@
 #include <iomanip>
 #include <iostream>
 #include <regex>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -21,6 +20,7 @@
 
 using Bit = unsigned long long;
 using Bits = std::vector<Bit>;
+using Bit_Matrix = std::vector<Bits>;
 
 const Bit DONT_CARE_BIT = 2;
 const Bit BLANK_BIT = 3;
@@ -88,6 +88,38 @@ const Bit BLANK_BIT = 3;
  * }
  */
 
+
+// These 3 function templates allow us to use sorted, unqiue-elt 
+// "std::vector"s: avoids overhead of std::set what w/ its typical red-black
+// tree implementation, & this program's use of iteration FAR more frequently
+// than insertion/erasure means we ought to simulate std::set w/ std::vector.
+
+// Check out this PDF for more info on std::set vs std::vector:
+// http://lafstern.org/matt/col1.pdf
+
+template<typename T>
+static void sorted_insert(std::vector<T>&v, const T elt) {
+  // "lower_bound" performs binary search
+  auto position = std::lower_bound(v.begin(), v.end(), elt);
+  if(position == v.end() || elt < *position)
+    v.insert(position, elt);
+}
+
+template<typename T>
+static void sorted_erase(std::vector<T>&v, const T elt) {
+  // "lower_bound" performs binary search
+  auto position = std::lower_bound(v.begin(), v.end(), elt);
+  if(position != v.end() && *position == elt)
+    v.erase(position);
+}
+
+template<typename T>
+static bool sorted_find(const std::vector<T>&v, const T elt) {
+  // "lower_bound" performs binary search
+  auto position = std::lower_bound(v.begin(), v.end(), elt);
+  return (position != v.end() && *position == elt);
+}
+
 /******************************************************************************
 * ARITHMETIC HELPER FUNCTIONS
 ******************************************************************************/
@@ -136,105 +168,30 @@ constexpr inline Bit log2(const Bit n) {
 // Time & Space Complexity: O(D)
 static void find_adjacent_hypercube_points(const Bit D, const Bit original_D,
                                            const Bit P, const Bit original_P,
-                                           std::set<Bit>&points_connected_to_P){
-  if(!D || P > (1 << original_D)) return;
-  const Bit half_of_dimension = (1 << (D-1));
+                                           Bits &points_connected_to_P){
+  if(!D || P > (1<<original_D)) return;
+  const Bit half_of_dimension = (1<<(D-1));
   if(P >= half_of_dimension) {
-    points_connected_to_P.insert(original_P-half_of_dimension);
+    sorted_insert(points_connected_to_P, original_P-half_of_dimension);
     find_adjacent_hypercube_points(D-1, original_D, P-half_of_dimension, original_P, points_connected_to_P);
   } else {
-    points_connected_to_P.insert(original_P+half_of_dimension);
+    sorted_insert(points_connected_to_P, original_P+half_of_dimension);
     find_adjacent_hypercube_points(D-1, original_D, P, original_P, points_connected_to_P);
   }
 }
 
-
-// Returns set of points connected to point P in hypercube of dimension D
-// Time & Space Complexity: O(D)
-std::set<Bit> adjacent_hypercube_points(const Bit D, const Bit P) {
-  std::set<Bit> connected_points;
-  find_adjacent_hypercube_points(D, D, P, P, connected_points);
-  return connected_points;
-}
-
-
-// Returns adjacency list for points in dimension D via MxN vector-set matrix.
-//   => M == parent & N == parent's corresponding adjacent points
-// Time & Space Complexity: O(D*2^D)
-std::vector<std::set<Bit>> dimension_adjacency_matrix(const Bit D) {
-  std::vector<std::set<Bit>> adj_matrix;
-  for(Bit P = 0, total_P = (1 << D); P < total_P; ++P)
-    adj_matrix.push_back(adjacent_hypercube_points(D,P));
-  return adj_matrix;
-}
-
 /******************************************************************************
-* NESTED HYPERCUBE CONTAINMENT FUNCTIONS
+* NESTED HYPERCUBE CONTAINMENT FUNCTION
 ******************************************************************************/
 
 // Confirms set "points" all fall w/in dimension D's range
 // Time  Complexity: O(points.size())
 // Space Complexity: O(1)
-static bool points_are_within_D(const Bit D, const std::set<Bit>points){
-  const Bit total_D_points = (1 << D);
+static bool points_are_within_D(const Bit D, const Bits &points){
+  const Bit total_D_points = (1<<D);
   if(points.empty() || points.size()>total_D_points) return false;
   for(Bit pt : points) if(pt >= total_D_points) return false;
   return true;
-}
-
-
-// Confirms set "points" forms a hypercube w/in another hypercube dimension's 
-//   adjacency matrix.
-//   => HYPERCUBE DEFN: 2^n points with n edges btwn one another.
-// Time  Complexity: O(points.size()^2)
-// Space Complexity: O(1)
-bool adj_matrix_contains_hypercube(const std::vector<std::set<Bit>>&adj_matrix, 
-const std::set<Bit>points) {
-  const Bit edges_btwn_pts = log2(points.size()); // sought subdimension
-  Bit edge_counter;
-  for(Bit pt : points) {
-    edge_counter = 0;
-    for(Bit pt2 : points)
-      if(adj_matrix[pt].find(pt2) != adj_matrix[pt].end())
-        ++edge_counter;
-    if(edge_counter != edges_btwn_pts) return false;
-  }
-  return true;
-}
-
-/******************************************************************************
-* COMBINATIONS HELPER FUNCTIONS
-******************************************************************************/
-
-// Recursive fcn to mk a combinations set matrix for "combinations" fcn below
-template <typename T>
-static void find_combinations(const Bit r, 
-const typename T::iterator n_begin, const typename T::iterator n_end, 
-T seen, std::set<T>&combo_matrix) {
-  typename T::iterator temp;
-  for(auto it = n_begin; it != n_end;) {
-    seen.insert(*it);
-    temp = it++;
-    switch(r) {
-      case 1:  combo_matrix.insert(seen); break;
-      default: find_combinations(r-1, it, n_end, seen, combo_matrix);
-    } 
-    seen.erase(*temp);
-  }
-}
-
-
-// Returns a set matrix of possible combinations length r w/in container 
-// group_n of type "T", where T is a std::set of any type of elt.
-// => Hence a set of ints are just as easy combined as a set of sets.
-// NOTE: r == group size w/in set "group_n" we are finding combos 
-template <typename T>
-std::set<T> combinations(const Bit r,const T group_n){
-  std::set<T> combo_matrix;
-  if(r > group_n.size())
-    return combo_matrix;
-  find_combinations(r, group_n.begin(), group_n.end(), {}, combo_matrix);
-  return combo_matrix;
 }
 
 /******************************************************************************
@@ -243,24 +200,14 @@ std::set<T> combinations(const Bit r,const T group_n){
 
 // Returns a set of indices where "function_bit_values" has a "sought" value
 // => "sought_bit" = 1 for SOP (minterm) && 0 for POS (maxterm)
-static void convert_fcn_to_point_set(
-const Bits function_bit_values, const Bit sought_bit,std::set<Bit>&need_to_cover, 
-std::set<Bit>&points){
-  for(Bit i = 0; i < function_bit_values.size(); ++i)
+static void convert_fcn_to_point_set(const Bits &function_bit_values, 
+  const Bit sought_bit,Bits &need_to_cover, Bits &points) {
+  const Bit n = function_bit_values.size();
+  for(Bit i = 0; i < n; ++i)
     if(function_bit_values[i] == sought_bit)
-      points.insert(i), need_to_cover.insert(i);
+      sorted_insert(points, i), sorted_insert(need_to_cover, i);
     else if(function_bit_values[i] == DONT_CARE_BIT)
-      points.insert(i);
-}
-
-
-// Confirms given sets are disjoint
-static inline bool sets_are_disjoint(
-const std::set<Bit>&set1,const std::set<Bit>&set2){
-  for(auto elt : set1)
-    if(set2.find(elt) != set2.end())
-      return false;
-  return true;
+      sorted_insert(points, i);
 }
 
 
@@ -272,94 +219,359 @@ const Bit total_vertices) {
   return log2(max_inner_hypercube_vertices);
 }
 
+/******************************************************************************
+* EPI PARSING FROM PI MATRIX (FIND FEWEST LARGEST PI'S TO COVER ALL NEEDED PTS)
+******************************************************************************/
 
-// Returns vector of set matrices w/ possible hypercube coordinate arrangements
-// for the given "points" set
-static std::vector<std::set<std::set<Bit>>> possible_hypercube_combinations(
-const Bit max_inner_hypercube, const std::set<Bit> points) {
-  std::vector<std::set<std::set<Bit>>> hypercube_combos;
-  for(Bit dim = max_inner_hypercube; dim >= 0; --dim) {
-    hypercube_combos.push_back(combinations((1 << dim), points));
-    if(dim == 0) return hypercube_combos;
+// Return whether NOT all rows in "PI_matrix" are empty
+static bool PI_matrix_is_not_empty(const std::vector<Bit_Matrix>&PI_matrix){
+  for(auto PI_sets : PI_matrix)
+    if(!PI_sets.empty()) return true;
+  return false;
+}
+
+
+// Find idx of smallest "values" list (ie the set of PI's containing the least 
+// frequent desired elt)
+static Bit idx_of_row_with_least_values_in_PI_matrix(
+const std::vector<Bit_Matrix>&PI_matrix) {
+  bool first_non_empty_row = true;
+  Bit shortest_row_idx = 0, count = 0;
+  for(auto PI_set : PI_matrix) {
+    if(!PI_set.empty() && 
+    (first_non_empty_row || PI_set.size()<PI_matrix[shortest_row_idx].size())){
+      shortest_row_idx = count;
+      first_non_empty_row = false;
+    }
+    ++count;
   }
-  return hypercube_combos;
+  return shortest_row_idx;
+}
+
+
+// Rm excess PI's w/ points in the current "epi" from the "PI_matrix"
+static void rm_redundant_PIs_from_PI_matrix(const Bits &epi,
+std::vector<Bit_Matrix> &PI_matrix,
+const Bits &desired_keys) {
+  // erase rows for epi's points
+  const Bit total_desired = desired_keys.size();
+  for(auto desired_point_key : epi) {
+    Bit i = 0;
+    while(i < total_desired && desired_keys[i] != desired_point_key) ++i;
+    if(i < total_desired) PI_matrix[i].clear();
+  }
+  
+  // erase redundant rows for epi's points
+  const Bit n = PI_matrix.size();
+  Bit_Matrix redundant_PI;
+  for(Bit i = 0; i < n; ++i) {
+    // no redundant sets if only 1 or 0 sets remaining in a list of sets 
+    // containing a desired point outside of the current "epi"
+    if(PI_matrix[i].size() < 2) continue;
+
+    Bit count = PI_matrix[i].size();
+    redundant_PI.clear();
+
+    for(auto PI : PI_matrix[i]) {
+      if(count < 2) break; 
+      for(auto point : epi)
+        if(sorted_find(PI, point)) { 
+          sorted_insert(redundant_PI, PI), --count;
+          break;
+        }
+    }
+
+    for(auto PI : redundant_PI) sorted_erase(PI_matrix[i], PI);
+  }
+}
+
+
+// Rm all non-EPIs from "cube_matrix" of cube-PI's
+static void rm_non_EPIs_from_PI_cube_matrix(Bit_Matrix &cube_matrix,
+const Bits &need_to_cover) {
+  Bits desired_keys;
+
+  // Put intersection of "need_to_cover" & "cube_matrix" in "desired_keys".
+  // These are the elts the EPI set must contain.
+  for(auto cube : cube_matrix)
+    for(auto point : cube)
+      if(sorted_find(need_to_cover, point))
+        sorted_insert(desired_keys, point);
+
+
+  const Bit total_desired = desired_keys.size();
+
+  // Idxs = "keys", where "key" = elt in "desired_keys".
+  //   => IE: if desired_keys[0] = 7, 7 = key for PI_matrix[0]
+  // Matrices of sets (matrices of PI's) = "values" list, where each set 
+  //   (PI) in "values" contains its "key" as an elt.
+  std::vector<Bit_Matrix>PI_matrix(total_desired,Bit_Matrix{});
+
+  // Initialize PI_matrix according to the parameters above its definition
+  for(Bit i = 0; i < total_desired; ++i)
+    for(auto cube : cube_matrix)
+      if(sorted_find(cube, desired_keys[i]))
+        sorted_insert(PI_matrix[i], cube);
+
+  cube_matrix.clear(); // will hold the set of EPI's
+
+  // Parse EPIs from w/in PI_matrix
+  Bits epi;
+  while(PI_matrix_is_not_empty(PI_matrix)) {
+
+    // Find idx of smallest "values" list (ie the set of PI's 
+    // containing the least frequent desired elt)
+    Bit shortest_row_idx = idx_of_row_with_least_values_in_PI_matrix(PI_matrix);
+
+    // Selected an epi (could be any in "PI_matrix[shortest_row_idx]" set)
+    epi = PI_matrix[shortest_row_idx][0];
+
+    // Eliminate sets of PI's containing any points from the current "epi" 
+    //   (given they're now covered), SO LONG as such a set is not the ONLY set
+    //   left in a row's "values" list (otherwise would lose all sets
+    //   containing the row's desired elt "key").
+    // Furthermore, also eliminate all rows w/ points in "epi" as their key:
+    //   since "epi" already covers the point, no need for a list of other sets 
+    //   containing it.
+    rm_redundant_PIs_from_PI_matrix(epi,PI_matrix,desired_keys);
+    sorted_insert(cube_matrix, epi);
+  }
 }
 
 /******************************************************************************
-* ESSENTIAL PRIME IMPLICANTS FROM PI'S PARSING FUNCTIONS
+* PI DERIVATION (FINDING INNER HYPERCUBES COVERING NEEDED POINTS)
 ******************************************************************************/
 
-// Returns set of all unique elts within the dimensionSet matrix
-std::set<Bit> get_set_of_elts_in_dimension(const std::set<std::set<Bit>>dimensionSet) {
-  std::set<Bit> uniqueElts;
-  for(auto dim : dimensionSet)
-    for(auto point : dim)
-      uniqueElts.insert(point);
-  return uniqueElts;
+// Clears row at idx "rm" & erases all elt instances of "rm" from "adj_matrix"
+static void erase_row_and_all_elt_instances_of(const Bit rm,
+Bit_Matrix &adj_matrix) {
+  adj_matrix[rm].clear(); // erase row
+  for(Bit i = 0, n = adj_matrix.size(); i < n; ++i) // erase elts
+    sorted_erase(adj_matrix[i], rm);
 }
 
 
-// Return matrix of all possible combinations of start-to-end groups of
-// PI's w/in dimensionSet
-static std::set<std::set<std::set<std::set<Bit>>>> get_all_EPI_candidate_combos(
-const Bit start, const Bit end, const std::set<std::set<Bit>> dimensionSet) {
-  std::set<std::set<std::set<std::set<Bit>>>> possible_EPI_3D_matrix; // Big Oof
-  for(Bit i = start; i <= end; ++i)
-    possible_EPI_3D_matrix.insert(combinations(i, dimensionSet));
-  return possible_EPI_3D_matrix;
+// Removes all references & rows of points NOT in "need_to_cover" set from "adj_matrix"
+static void rm_dont_needToCovers_from_adj_matrix(const Bit MAX_VERTICES,
+const Bits &need_to_cover,Bit_Matrix &adj_matrix){
+  // Get which bits we don't need to try covering
+  std::vector<bool> dont_need_to_cover_hash_table(MAX_VERTICES, true);
+  for(auto v : need_to_cover) dont_need_to_cover_hash_table[v] = false;
+  // rm these "don't care bits" from the adjacency list matrix cpy
+  // once complete, we have an adj. list matrix ONLY w/ "need_to_cover" bits
+  for(Bit i = 0; i < MAX_VERTICES; ++i)
+    if(dont_need_to_cover_hash_table[i])
+      erase_row_and_all_elt_instances_of(i, adj_matrix);
 }
 
 
-// confirm whether point matrix (or epi set) contains all of needToCoverElts
-static bool set_contains_all_elts(const std::set<std::set<Bit>>epiSet, 
-const std::set<Bit> needToCoverElts) {
-  for(auto elt : needToCoverElts) {
-    bool found = false;
-    for(auto epi : epiSet) {
-      for(auto point : epi)
-        if(point == elt) {
-          found = true;
-          break;
-        }
-      if(found) break;
-    }
-    if(!found) return false;
+// Returns whether "adj_matrix" has enough points to form an "nth" sub-dimension w/in
+static bool has_dimension_n(const Bit_Matrix &adj_matrix,const Bit n){
+  const Bit minimum_points_in_dimension_n = (1<<n);
+  const Bit adj_matrix_size = adj_matrix.size();
+  Bit total_points = 0;
+  for(Bit i = 0; i < adj_matrix_size; ++i) {
+    if(adj_matrix[i].size() >= n)
+      ++total_points;
+    if(total_points >= minimum_points_in_dimension_n) 
+      return true;
   }
-  return true;
+  return false;
 }
 
 
-// Return EPIs from PIs given in dimensionSet 
-// (EPI = Essential Prime Implicant, PI = Prime Implicant)
-static std::set<std::set<Bit>> EPIs_within_dimensionSet(
-const std::set<std::set<Bit>> dimensionSet, const std::set<Bit> desiredCoveredBits) {
-  if(dimensionSet.empty()) return {};
-  const Bit m = dimensionSet.size();    // number of sub dimensions
-  const Bit n = (*dimensionSet.begin()).size(); // number of points per sub dimension
-  auto elts_in_dimension = get_set_of_elts_in_dimension(dimensionSet);
+// Returns set matrix of combinations size "n" w/in iterator range [begin,end)
+static void get_n_combinations_in_range(const Bit n, 
+const Bits::iterator begin, const Bits::iterator end, 
+Bits seen, Bit_Matrix &combo_matrix) {
+  Bits::iterator temp;
+  for(Bits::iterator it = begin; it != end;) {
+    sorted_insert(seen, *it);
+    temp = it++;
+    switch(n) {
+      case 1:  sorted_insert(combo_matrix, seen); break;
+      default: get_n_combinations_in_range(n-1, it, end, seen, combo_matrix);
+    } 
+    sorted_erase(seen, *temp);
+  }
+}
 
-  // Unique elts are those we seek to find EPI's covering -- the intersection
-  // of desired bits we ultimately seek to completely cover on the Kmap with 
-  // the derived set of bits that this current subdimension DOES cover (those 
-  // remaining the "desiredCoveredBits" will be covered by a lower dimension)
-  std::set<Bit> uniqueElts;
-  for(auto elt : elts_in_dimension)
-    if(desiredCoveredBits.find(elt) != desiredCoveredBits.end())
-      uniqueElts.insert(elt);
 
-  // minimum sets needed to cover all unique elts
-  const Bit minimum_sets_to_cover_points = 1+((uniqueElts.size()-1)/n);  // cieling(uniqueElts.size()/n)
+// Remove all elts in "seen" set from set-matrix "val_list"
+static void rm_seen_elts_from_valList(const Bits &seen,Bit_Matrix &val_list){
+  for(auto point : seen)
+    for(Bits &adj_list : val_list)
+      sorted_erase(adj_list, point);
+}
 
-  // All potential EPI combos, sorted in ascending length (hence the BEST 
-  // (fewer dependancies) epi set will be closer to the front)
-  auto epi_3D_set_combinations = get_all_EPI_candidate_combos(minimum_sets_to_cover_points, m, dimensionSet); 
 
-  for(auto epi_set_combination : epi_3D_set_combinations) // per 3D matrix in 4D matrix
-    for(auto epi_set : epi_set_combination)               // per 2D matrix in 3D matrix
-      if(set_contains_all_elts(epi_set, uniqueElts))
-        return epi_set;
+// Refills "val_list" w/ adjacency lists from "adj_matrix" & push points from
+// "pt_rows" to "seen" set
+static void refill_valList_and_push_to_seen(Bits &seen,Bit_Matrix &val_list,
+const Bits &pt_rows, const Bit_Matrix &adj_matrix) {
+  for(auto point : pt_rows) {
+    val_list.push_back(adj_matrix[point]);
+    sorted_insert(seen, point);
+  }
+}
 
-  return {};
+
+// If all rows in val_list share "edge" distinct elts w/ "n - edge" other rows,
+// return set of these shared elts - else, return empty set
+static void shared_edges_set_forming_sub_dimension(const Bit n,const Bit edge,
+Bits &pt_rows,const Bit_Matrix &val_list) {
+  pt_rows.clear();
+
+  Bit this_row_idx = 0;
+  for(auto this_row : val_list) {
+
+    Bit elt_count = 0;
+    for(auto elt : this_row) {
+
+      Bit row_count = 0, row_idx = 0;
+      for(auto row : val_list) {
+        if(sorted_find(row, elt) && row_idx != this_row_idx)
+          ++row_count;
+        ++row_idx;
+      }
+
+      if(row_count == (n - edge)) {
+        sorted_insert(pt_rows, elt);
+        ++elt_count;
+      }
+    }
+
+    if(elt_count != edge) {
+      pt_rows.clear();
+      return;
+    }
+
+    ++this_row_idx;
+  }
+}
+
+
+// Get "nth" sub-dimensions w/ point "P" in "adj_matrix"
+static void get_nth_sub_cubes_containing_point_P(const Bit P,const Bit n,
+Bit_Matrix &cube_matrix, Bit_Matrix &adj_matrix){
+  // Get "n"-length combinations of P's values to try and form cubes w/
+  Bit_Matrix combos;
+  get_n_combinations_in_range(n,adj_matrix[P].begin(),adj_matrix[P].end(),{},combos);
+
+  Bits seen;
+  Bit_Matrix val_list;
+
+  // get all sub-dimensions of point P connected to different combinations of "edge" points in its adjacency list
+  for(auto pt_rows : combos) { // "pt_rows" = the "idx" keys for "val_list"'s rows
+    bool is_cube = true;
+    seen = {P};
+    val_list.clear();
+    
+    // get initial series of point adj lists & save the to set of "seen" points
+    refill_valList_and_push_to_seen(seen,val_list,pt_rows,adj_matrix);
+
+    // check whether point & "edge" points combo in its adjacency list forms an actual sub-dimension or not
+    for(Bit edge = n-1; edge > 0; --edge) {
+      rm_seen_elts_from_valList(seen,val_list);
+
+      // if all rows in val_list share "edge" distinct elts w/ "n - edge" other rows, 
+      // put set of these shared elts into "pt_rows"
+      shared_edges_set_forming_sub_dimension(n, edge, pt_rows, val_list);
+
+      if(!pt_rows.empty()) {
+        val_list.clear();
+        refill_valList_and_push_to_seen(seen,val_list,pt_rows,adj_matrix);
+      } else {
+        is_cube = false;
+        break;
+      }
+    }
+
+    if(is_cube) sorted_insert(cube_matrix, seen);
+  }
+}
+
+
+// Confirms cube = subset of any higher-dimensional cubes in "cube_matrix"
+static bool cube_subset_of_larger_cubes(const Bits &cube,
+const Bit_Matrix &cube_matrix){
+  for(auto hcube : cube_matrix) {
+    if(hcube.size() <= cube.size()) 
+      continue;
+    bool hcube_contains_cube = true;
+    for(auto point : cube)
+      if(!sorted_find(hcube, point)) {
+        hcube_contains_cube = false;
+        break;
+      }
+    if(hcube_contains_cube) 
+      return true; // cube IS a subset of higher dimension in "cube_matrix"
+  }
+  return false; // cube is NOT a subset of higher dimension in "cube_matrix"
+}
+
+
+// FIRST parses out PI's for dimension (sub-dimensions spanning "need_to_cover"
+// points), THEN rms any non-essential PI's (thus only leaving EPIs)
+void get_EPI_sub_dimension_matrix_for_D(const Bit D, const Bit max_inner_hypercube,
+Bits &need_to_cover, const Bit_Matrix &full_adj_matrix,
+Bit_Matrix &cube_matrix,const Bits &points) {
+  // rm all references & rows of points NOT in "need_to_cover" set from "adj_matrix"
+  Bit_Matrix adj_matrix(full_adj_matrix);
+  rm_dont_needToCovers_from_adj_matrix((1<<D), points, adj_matrix);
+
+  Bit_Matrix local_adj_matrix;
+  Bit_Matrix local_cube_matrix;
+  Bit_Matrix subset_cubes;
+
+  // For each possible sub-dimension in "adj_matrix" of "need_to_cover" points
+  for(Bit n = max_inner_hypercube; n >= 0 && !need_to_cover.empty(); --n) {
+
+    // if "full_adj_matrix" has a sub-dimension size n
+    if(has_dimension_n(adj_matrix,n)) {
+      local_adj_matrix = adj_matrix;
+      local_cube_matrix.clear();
+
+      // Get sub-cubes for the current "nth" dimension in "adj_matrix"
+      for(Bit i = 0; i < local_adj_matrix.size(); ++i)
+        if(local_adj_matrix[i].size() >= n) {
+          // Add nth dimensional cubes that can be formed including point "i"
+          get_nth_sub_cubes_containing_point_P(i,n,local_cube_matrix,local_adj_matrix);
+          // Rm instances of point "i" in "local_adj_matrix", given
+          // we already have all the sub-hypercubes that can be formed w/ it
+          erase_row_and_all_elt_instances_of(i, local_adj_matrix);
+        }
+
+      // Rm all local cubes that are subsets of a pre-existing larger cube
+      subset_cubes.clear();
+      for(auto cube : local_cube_matrix)
+        if(cube_subset_of_larger_cubes(cube, cube_matrix)) 
+          sorted_insert(subset_cubes, cube);
+      for(auto cube : subset_cubes)
+        sorted_erase(local_cube_matrix, cube);
+
+      // Rm all non-essential PI's from "local_cube_matrix" 
+      //   => HENCEFORTH "local_cube_matrix" SHALL ONLY CONTAIN "EPI"'S !!!
+      rm_non_EPIs_from_PI_cube_matrix(local_cube_matrix,need_to_cover); 
+
+      // push "local_cube_matrix" cubes to "cube_matrix", 
+      // & rm their pts from "need_to_cover"
+      for(auto cube : local_cube_matrix) {
+        sorted_insert(cube_matrix, cube);
+        for(auto point : cube) 
+          sorted_erase(need_to_cover, point);
+      }
+    }
+
+    // End of iteration: manual break since 'Bit' type is unsigned
+    if(n == 0) break;
+  }
+
+  // insert the remaining points left over in "need_to_cover" set, which
+  // (having no connections to other points in the adjacency list matrix)
+  // are their own 0th dimensional cubes
+  for(auto point : need_to_cover)
+    sorted_insert(cube_matrix, Bits{point});
 }
 
 /******************************************************************************
@@ -368,62 +580,29 @@ const std::set<std::set<Bit>> dimensionSet, const std::set<Bit> desiredCoveredBi
 
 // Returns hypercube overlap matrix of vertices in set "points" w/in dimension D
 // => IE the sets of vertices w/in "points" that are K-map logically adjacent!
-std::set<std::set<Bit>> max_hypercube_overlap_matrix(const Bit D, 
+Bit_Matrix max_hypercube_overlap_matrix(const Bit D, 
 const Bits function_bit_values, const Bit sought_bit) {
-  std::set<Bit> need_to_cover, points;
+  Bits need_to_cover, points;
   convert_fcn_to_point_set(function_bit_values,sought_bit,need_to_cover,points);
   if(D == 0 || !points_are_within_D(D,points)) 
-    return std::set<std::set<Bit>>{};
+    return Bit_Matrix{};
 
   // find greatest formable hypercube from set "points"
   Bit max_inner_hypercube = max_formable_hypercube((1<<D), points.size());
-  if(max_inner_hypercube > D) return std::set<std::set<Bit>>{};
+  if(max_inner_hypercube > D) return Bit_Matrix{};
 
   // adajcency matrix for points in dimension D 
   //   => ie: logical adjacency matrix for cells in K-map of D vars
-  const std::vector<std::set<Bit>>adj_matrix=dimension_adjacency_matrix(D);
+  const Bit TOTAL_VERTICES = (1 << D);
+  Bit_Matrix adj_matrix(TOTAL_VERTICES, Bits{});
+  for(Bit P = 0; P < TOTAL_VERTICES; ++P) // generates adjacency matrix per vertex
+    find_adjacent_hypercube_points(D,D,P,P, adj_matrix[P]); 
 
-  // max overlaps (prime implicants), points (cells) not yet covered, & all 
-  //   possible hypercube combos made from "points"
-  std::set<std::set<Bit>> max_hypercube_overlaps; 
-  auto hypercube_combos = possible_hypercube_combinations(max_inner_hypercube, points);
+  // Each inner set = set of points forming a sub-dimension/inner-hypercube
+  Bit_Matrix EPI_matrix;
+  get_EPI_sub_dimension_matrix_for_D(D, max_inner_hypercube, need_to_cover, adj_matrix, EPI_matrix, points);
 
-  // get formable hypercubes from "points" (prime implicants)
-  for(Bit i = 0; i <= max_inner_hypercube && !need_to_cover.empty(); ++i) {
-
-    // track all hypercubes covering the locally critical points 
-    // (points not previously covered by any higher dimension)
-    // and parse out EPI's within from a seperate function 
-    // (this fcn only serves to ID Prime Implicants not the ESSENTIALS)
-    auto LOCAL_DIM_NEED_TO_COVER(need_to_cover);
-    std::set<std::set<Bit>> local_dim_prime_implicants;
-
-    for(auto cube_set : hypercube_combos[i]) {
-      if(!sets_are_disjoint(cube_set, LOCAL_DIM_NEED_TO_COVER) && adj_matrix_contains_hypercube(adj_matrix, cube_set)) {
-        // erase found cube's pts from set "need_to_cover"
-        for(auto pt : cube_set) 
-          need_to_cover.erase(pt);
-        // save dimension/hypercube formed
-        local_dim_prime_implicants.insert(cube_set);
-        // erase subset dimensions of the found dimension
-        for(Bit j = i+1; j <= max_inner_hypercube; ++j)
-          for(auto sub_cube_set = hypercube_combos[j].begin(); 
-              sub_cube_set != hypercube_combos[j].end();) {
-            if(sets_are_disjoint(*sub_cube_set, need_to_cover))
-              hypercube_combos[j].erase(*(sub_cube_set++));
-            else
-              ++sub_cube_set;
-          }
-      } 
-    }
-
-    // Parse & save essential prime implicants from the current dimension's PI's
-    auto epi_set = EPIs_within_dimensionSet(local_dim_prime_implicants, LOCAL_DIM_NEED_TO_COVER);
-    for(auto epi : epi_set)
-      max_hypercube_overlaps.insert(epi);
-  }
-
-  return max_hypercube_overlaps;
+  return EPI_matrix;
 }
 
 /******************************************************************************
@@ -498,7 +677,7 @@ static bool v_in_var_N_domain(const Bit D, const Bit N, const Bit v) {
 //         or whether none of the points are in the domain              (-1)
 //         or some are in the domain but others aren't                   (0)
 static int total_or_empty_set_intersection(const Bit D, const Bit N, 
-const std::set<Bit> overlap_cube) {
+const Bits overlap_cube) {
   Bit total_overlap = 0, no_overlap = 0;
   for(auto v : overlap_cube) { // for each point in cube
     if(v_in_var_N_domain(D, N, v))
@@ -534,8 +713,9 @@ const Bits fcn_bit_values, const Bit sought_bit) {
   auto overlapping_cubes = max_hypercube_overlap_matrix(D, 
                            fcn_bit_values, sought_bit);
   
+  Bits cube_vars, cube_compl_vars;
   for(auto overlap_cube : overlapping_cubes) { // for each cube
-    Bits cube_vars, cube_compl_vars;
+    cube_vars.clear(), cube_compl_vars.clear();
     
     for(Bit N = 0; N < D; ++N) { // for each var
       intersection = total_or_empty_set_intersection(D, N, overlap_cube);
@@ -608,7 +788,7 @@ static std::string rmv_double_compl(std::string fcn) {
 
 // Verifies matrix of truth table fcn results = same size & a power of 2
 static inline void verify_valid_truth_table_fcn_result_matrix(
-const std::vector<Bits> fcn_results) {
+const Bit_Matrix fcn_results) {
   const std::string clearNewline = "\x1b[0m\n";
   if(fcn_results.empty()) {
     std::cerr << K_ERR_HEADER 
@@ -798,10 +978,10 @@ std::string POS_str(std::vector<std::string> var_names, Fcn bit_row_fcn){
 // Applies given fcn across an n-bit truth table, returning vector of results.
 template<typename Fcn>
 Bits TruthTable_fcn(const Bit n, Fcn func) {
-  Bits results;
+  Bits results, row;
   if(n == 0) return results;
   for(Bit counter = 0, rows = (1<<n); counter < rows; ++counter){
-    Bits row;
+    row.clear();
     for(Bit shift = n-1; shift >= 0; --shift) {
       row.push_back((counter >> shift) & 1);
       if(shift == 0) break;
@@ -816,7 +996,7 @@ Bits TruthTable_fcn(const Bit n, Fcn func) {
 ******************************************************************************/
 
 // Prints Truth Table for given a matrix of truth table function results.
-void TruthTable_print(const std::vector<Bits> fcn_results) {
+void TruthTable_print(const Bit_Matrix fcn_results) {
   verify_valid_truth_table_fcn_result_matrix(fcn_results);
   const Bit bit_No = log2(fcn_results[0].size());
   if(bit_No == 0) return;
@@ -852,7 +1032,7 @@ void TruthTable_print(const std::vector<Bits> fcn_results) {
 
 // Prints Truth Table for given 1 vector of truth table function results.
 void TruthTable_print(Bits fcn_results) {
-  TruthTable_print(std::vector<Bits>{fcn_results});
+  TruthTable_print(Bit_Matrix{fcn_results});
 }
 
 
@@ -864,10 +1044,11 @@ const std::vector<std::function<Bit(Bits)>> fcns_vec){
   if(bit_No == 0) return;
   const Bit total_fcns = fcns_vec.size();
   const Bit ROWS = (1 << bit_No);
-  std::vector<Bits> fcn_results(total_fcns, Bits{});
+  Bit_Matrix fcn_results(total_fcns, Bits{});
 
+  Bits row;
   for(Bit counter = 0; counter < ROWS; ++counter) {
-    Bits row;
+    row.clear();
     // Get row of truth table bits
     for(Bit shift = bit_No-1; shift >= 0; --shift) {
       row.push_back((counter >> shift) & 1);
@@ -1018,10 +1199,10 @@ void Kmap_print(const Bits function_bit_values, bool style_kmap_var_sections = t
 template <typename Fcn>
 void Kmap_print(const Bit n, Fcn bit_row_fcn, 
 bool style_kmap_var_sections = true) {
-  Bits fcn_result;
+  Bits fcn_result, row_result;
   if(n == 0) return;
   for(Bit counter = 0, rows = 1<<n; counter < rows; ++counter) {
-    Bits row_result;
+    row_result.clear();
     for(Bit shift = n-1; shift >= 0; --shift) {
       row_result.push_back((counter >> shift) & 1);
       if(shift == 0) break;
