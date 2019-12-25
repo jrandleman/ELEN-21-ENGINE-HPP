@@ -3,53 +3,72 @@
 ### _Compile >= C++17!_
 ----------------------
 
-## The Library's Main 4 Functions:
-* ***NOTE:** `SOP_str` & `POS_str`'s variable name string vector arg shall be sorted in __DESCENDING__ bit significance!*
-1) `SOP_str`: _Returns string with a function in minimum SOP form!_</br>
-              => Given either a `vector<string>` with variable names & `vector<unsigned>` of fcn results (as if from a truth table)</br>
-              => OR a `vector<string>` with variable names & a fcn to apply to a generated truth table
-2) `POS_str`: _Returns string with a function in minimum POS form!_</br>
-              => Given either a `vector<string>` with variable names & `vector<unsigned>` of fcn results (as if from a truth table)</br>
-              => OR a `vector<string>` with variable names & a fcn to apply to a generated truth table
-3) `Kmap_print`: _Prints a K-Map to `stdout`!_</br>
-              => Given either a # of bits (# of variables in K-Map) for a blank K-Map</br>
-              => OR a # of bits (# of K-Map vars) along with a fcn to apply across a generated truthtable onto a K-Map<br>
-              => OR a `vector<unsigned>` of fcn results (as if from a truth table)
-4) `TruthTable_print`: _Prints a Truth Table to `stdout`!_</br>
-              => Given either a # of bits (# of variables in Truth Table)</br>
-              => OR a # of bits and a `vector` or fcns to apply to the table</br>
-              => OR a `vector<vector<unsigned>>` matrix holding fcn results (as if from a truth table)
+## General Information For [`elen21.hpp`](https://github.com/jrandleman/ELEN-21-ENGINE-HPP/blob/master/elen21.hpp):
+### Library's 2 Predefined Types:
+1) `Bit`: `unsigned long long`</br>
+2) `Bits`: `vector<Bit>`</br>
+=> *Use to denote bit sequences & perform operations in `fcn`s passed to the library!*</br>
 
-## The Library's 4 "Function String" Helper Functions:
-* ***NOTE:** Used to further manipulate fcns returned by `SOP_str` or `POS_str`!*
-1) `xor_replace`:    _Returns `string` with fcn's expanded XOR/XNOR's abbreviated!_</br>
-2) `compl_literals`: _Returns `string` with fcn's literals complemented!_</br>
-3) `dual_fcn`:       _Returns `string` with fcn's dual!_</br>
+### README Notes:
+* *Refer to [`elen21_SampleExec.cpp`](https://github.com/jrandleman/ELEN-21-ENGINE-HPP/blob/master/elen21_SampleExec.cpp) for a demo!*</br>
+* *`#` = any number of type `Bit`*</br>
+* *"`name vector`" = `vector<string>` of variable names, ordered by **DESCENDING** bit significance!*</br>
+* *"`fcn`" = user-defined function: returns `Bit` & takes arg `Bits` ([more on this below](#sample-user-defined-function))*</br>
+
+----------------------
+
+## 4 Main Functions:
+
+1) `SOP_str`: _Returns SOP `string`!_</br>
+              => Given `name vector` & `Bits` of fcn results (as if from a truth table)</br>
+              => Given `name vector` & `fcn` to apply on their truth table
+2) `POS_str`: _Returns POS `string`!_</br>
+              => Given `name vector` & `Bits` of fcn results (as if from a truth table)</br>
+              => Given `name vector` & `fcn` to apply on their truth table
+3) `Kmap_print`: _Print K-Map to `stdout`!_</br>
+              => Given `#` of bits (# K-Map vars) for blank K-Map</br>
+              => Given `#` of bits (# K-Map vars) & `fcn` to apply on their truth table<br>
+              => Given `Bits` of fcn results (as if from a truth table)
+4) `TruthTable_print`: _Print Truth Table to `stdout`!_</br>
+              => Given `#` of bits (# Truth Table vars) for blank Truth Table</br>
+              => Given `#` of bits & a single (or `vector` of) `fcn` to apply on their truth table</br>
+              => Given a `Bits` (or `vector<Bits>` matrix) of fcn results (as if from a truth table)
+
+----------------------
+
+## 4 Helper Functions:
+* ***NOTE:** Further manipulates fcns returned by `SOP_str` & `POS_str`!*
+1) `xor_replace`:    _Returns `string` w/ fcn's XOR/XNOR's using the `^` operator!_</br>
+2) `compl_literals`: _Returns `string` w/ fcn's literals complemented!_</br>
+3) `dual_fcn`:       _Returns `string` w/ fcn's dual!_</br>
 4) `compl_fcn`:      _Composes "`compl_literals`" & "`dual_fcn`"!_
 
-## The Library's 2 Additional Functions, Universal Constant, & 2 Types:
-1) `BCD_decoder`: _Convert `vector<unsigned>` of bits into a decimal #!_</br>
-   => Helps with implementing "don't cares" in user-defined custom fcns
-2) `TruthTable_fcn`: _Given a # of bits & a fcn, returns `vector` of fcn results across truth table!_
-3) `DONT_CARE_BIT`: _Universal predefined constant - to be returned by user fcns if at a "don't care" row!_
-4) `Bit`: _Predefined type: `unsigned long long` (used as custom fcn return type)!_
-5) `Bits`: _Predefined type: `vector<unsigned long long>` (used as custom fcn arg type)!_
+----------------------
 
--------------
+## 2 Bonus Functions & DONT-CARE Universal Constant:
+1) `BCD_decoder`: _Convert `Bits` to a decimal #!_</br>
+   => Helps ID the current row in `fcn` applied to a truth table!</br>
+   => Used for identifying "_Don't Care_" rows as needed!
+2) `TruthTable_fcn`: _Given `#` of bits & `fcn`, returns `Bits` of fcn results across truth table!_
+3) `DONT_CARE_BIT`: _Universal **constant**: return from `fcn`s at "_Don't Care_" rows!_
+
+----------------------
+
 ## Sample User-Defined Function:
 ```c++
-// NOTE the mandatory predefined "Bit" return & "Bits" arg types!
-// NOTE "Bits" = vector sorted by descending bit significance, 
-//      contining a "row" of truth table bits as its arg!
+// Suppose variable names: A,B,C
+// NOTE TYPE CONSTRAINTS: "Bit" return & "Bits" arg!
  
-Bit your_func_name_here(Bits bit_vector) { 
-   Bit dont_care_row = 3; // if we don't care about row 3 (rows starting from 0)
-   
-   // BCD_decoder returns decimal value of given bit vector
-   if(BCD_decoder(bit_vector) == dont_care_row) 
-     return DONT_CARE_BIT; // use predefined "DONT_CARE_BIT" to denote don't cares
-     
-   return (bit_vector[0] & !bit_vector[1]) ^ bit_vector[3]; // any operation
+Bit some_func_name(Bits v) {
+  return (v[0] ^ v[1]) & !v[2]; // A xor B and not C
+}
+
+
+// Same fcn if we don't care beyond row 3:
+Bit some_func_name(Bits v) { 
+  if(BCD_decoder(v) > 3)
+    return DONT_CARE_BIT;
+  return (v[0] ^ v[1]) & !v[2]; // A xor B and not C
 }
 ```
 
